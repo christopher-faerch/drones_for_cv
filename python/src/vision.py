@@ -3,19 +3,20 @@ from matplotlib.pyplot import draw
 import numpy as np
 import os 
 
-path = "python/img/"
+path = "python/images/"
 
 class Vision:
 
     def __init__(self, original_image = "img/original_field.jpg"):
         self.original_image = original_image
         self.img = None
+        self.mahalanobis_distance = None
 
     def get_img(self):
         return self.img
 
-    def load_image(self) -> None:
-        self.img = cv2.imread(os.path.join(path, "original_field.jpg"))
+    def load_image(self, image_name: str) -> None:
+        self.img = cv2.imread(os.path.join(path, image_name))
         if self.img is None:
             print("Error: Image not found.")
 
@@ -46,131 +47,31 @@ class Vision:
         cv2.line(self.img, (20, 30), (40, 120),(0, 0, 255), 3)
         cv2.imwrite(os.path.join(path, "test.png"), self.img)
 
-    def draw_penis(self) -> None:
-        temp_img = self.img.copy()
-        cv2.rectangle(temp_img, (100, 100), (200, 400), (255, 0, 0), -1)  # Main body
-        cv2.circle(temp_img, (100, 100), 50, (255, 0, 0), -1)  # Left testicle
-        cv2.circle(temp_img, (200, 100), 50, (255, 0, 0), -1)  # Right testicle
-        cv2.circle(temp_img, (150, 400), 50, (255, 0, 0), -1)  # the tip
-        cv2.imwrite(os.path.join(path, "[1.6.2] draw_something.png"), temp_img)
 
-    def save_color_channels(self) -> None:
-        b, g, r = cv2.split(self.img)
-        cv2.imwrite(os.path.join(path, "[1.6.3]blue_channel.png"), b)
-        cv2.imwrite(os.path.join(path, "[1.6.3]green_channel.png"), g)
-        cv2.imwrite(os.path.join(path, "[1.6.3]red_channel.png"), r)
-
-    def save_upper_half(self) -> None:
-        height, width = self.img.shape[:2]
-        upper_half = self.img[:height // 2, :]
-        cv2.imwrite(os.path.join(path, "[1.6.4]upper_half.png"), upper_half)
-
-    def save_hsv_image(self) -> None:
-        hsv_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
-        h, s, v = cv2.split(hsv_img)
-        cv2.imwrite(os.path.join(path, "[1.6.5]h_channel.png"), h)
-        cv2.imwrite(os.path.join(path, "[1.6.5]s_channel.png"), s)
-        cv2.imwrite(os.path.join(path, "[1.6.5]v_channel.png"), v)
-
-    def brightest_pixel(self) -> None:
+    def get_binary_mask(self) -> np.ndarray:
         if self.img is None:
             print("Error: No image provided.")
             return None
 
-        grey_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
-        max_val = np.max(grey_img)
-        max_coords = np.unravel_index(np.argmax(grey_img), grey_img.shape)
+        # BGR -> Lab
+        lab = cv2.cvtColor(self.img, cv2.COLOR_BGR2Lab)
 
-        new_img = self.img.copy()
-        # circle the brightest pixel
-        cv2.circle(new_img, (max_coords[1], max_coords[0]), 100, (0, 255, 0), 3)
-        cv2.circle(new_img, (max_coords[1], max_coords[0]), 10, (0, 255, 0), 1)
+        # Split and take ONLY the A channel (index 1)
+        _, A, _ = cv2.split(lab)
 
-        cv2.imwrite(os.path.join(path, "[1.6.6]brightest_pixel.png"), new_img)
+        # Keep values INSIDE [118, 255] on the A channel (inclusive)
+        a_min, a_max = 118, 255
+        mask = cv2.inRange(A, a_min, a_max)   # white where A in [118,255], black otherwise
 
-    def load_flower_image(self) -> None:
-        self.img = cv2.imread(os.path.join(path, "flower.jpg"))
-        if self.img is None:
-            print("Error: Flower image not found.")
-    
-    def find_yellow_hsv(self):
-        if self.img is None:
-            print("Error: No image provided.")
-            return None
+        # Optional smoothing of the binary mask
+        gauss_mask = cv2.GaussianBlur(mask, (5, 5), 0)
 
-        hsv_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
-        lower_yellow = np.array([20, 100, 100])
-        upper_yellow = np.array([30, 255, 255])
-        mask = cv2.inRange(hsv_img, lower_yellow, upper_yellow)
-        yellow_pixels = cv2.bitwise_and(self.img, self.img, mask=mask)
+        # Apply mask to original image (for visualization)
+        filtered = cv2.bitwise_and(self.img, self.img, mask=gauss_mask)
+        cv2.imwrite(os.path.join(path, "[1.6.8]_Filter_A_118-255.png"), filtered)
 
-        cv2.imwrite(os.path.join(path, "[1.6.7]yellow_hsv_pixels.png"), yellow_pixels)
-        cv2.imwrite(os.path.join(path, "[1.6.7]yellow_hsv_mask.png"), mask)
-
-    def find_yellow_lab(self):
-        if self.img is None:
-            print("Error: No image provided.")
-            return None
-
-        lab_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2Lab)
-        lower_yellow = np.array([50, 120, 150])  # L, a, b
-        upper_yellow = np.array([255, 150, 255])
-        mask = cv2.inRange(lab_img, lower_yellow, upper_yellow)
-        yellow_pixels = cv2.bitwise_and(self.img, self.img, mask=mask)
-
-        cv2.imwrite(os.path.join(path, "[1.6.7]yellow_pixels_lab.png"), yellow_pixels)
-        cv2.imwrite(os.path.join(path, "[1.6.7]yellow_mask_lab.png"), mask)
-
-    def get_each_pixel_green(self):
-        if self.img is None:
-            print("Error: No image provided.")
-            return None
-        height, width, channels = self.img.shape    
-        green_pixels = np.zeros((height, width, 3), dtype=np.uint8)
-        green_pixels[:, :, 1] = self.img[:, :, 1]
-        cv2.imshow("green", green_pixels)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        return green_pixels
-
-    def get_binary_mask(self) -> np.array:
-        if self.img is None:
-            print("Error: No image provided.")
-            return None
-        
-        hsv = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
-
-        # Everything except green hues (90–130) and low saturation
-        lower_green = np.array([35, 90, 30])   
-        upper_green = np.array([55, 255, 255]) 
-
-        # Mask the green
-        green_mask = cv2.inRange(hsv, lower_green, upper_green)
-
-        # Invert mask to keep everything except green
-        non_green_mask = cv2.bitwise_not(green_mask)
-
-        # Apply mask to original image
-        filtered = cv2.bitwise_and(self.img, self.img, mask=non_green_mask)
-
-        # Combine masks
-        # mask = cv2.bitwise_or(mask1, mask2)
-
-        gauss_filter = cv2.GaussianBlur(non_green_mask, (5, 5), 0)
-        # hsv_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
-        # lower_bound = np.array([0, 40, 50])    # allow more low-saturation
-        # upper_bound = np.array([179, 255, 255])
-        # mask = cv2.inRange(hsv_img, lower_bound, upper_bound)
-        animal_shapes = cv2.bitwise_and(hsv, hsv, mask=non_green_mask)
-        
-        # h, s, v = cv2.split(hsv_img)
-        cv2.imwrite(os.path.join(path, "[1.6.8]Filteren_animals.png"), filtered)
-        # _, binary_img = cv2.threshold(s, 0, 200, cv2.THRESH_BINARY)
-        self.show_image(non_green_mask)
-        self.show_image(gauss_filter)
-        # Calculate moments
-        return gauss_filter
-
+        # Return the binary mask (smoothed)
+        return gauss_mask
 
     def find_contours(self, binary_mask: np.ndarray) -> np.ndarray:
         if binary_mask is None:
@@ -199,7 +100,7 @@ class Vision:
             return edges
 
         # OPTIONAL: ignore tiny specks
-        min_area = 200  # tweak or set to 0 to disable
+        min_area = 250  # tweak or set to 0 to disable
         contours = [c for c in contours if cv2.contourArea(c) >= min_area]
 
         if not contours:
@@ -216,14 +117,7 @@ class Vision:
         cv2.drawContours(vis, contours, -1, (0, 0, 255), 5)
 
         self.show_image(vis)
-        return edges
-
-
-    def hu_moments(self, contour: list):
-        moments = cv2.moments(contour)
-        hu_features = cv2.HuMoments(moments).flatten()
-        print("Hu Moments:", hu_features)
-        return hu_features
+        return contours
 
     def print_hsv_values(self, pixel_start_location, pixel_end_location) -> None:
         hsv_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
@@ -251,3 +145,120 @@ class Vision:
         print(f"Saturation-> Min: {s_min}, Max: {s_max}, Avg: {s_avg:.2f}")
         print(f"Value     -> Min: {v_min}, Max: {v_max}, Avg: {v_avg:.2f}")
         print("\n=== HSV Statistics ===")
+
+    def mahalanobis_model(self, file_name, q=0.98, morph=3):
+        # Read images
+        img_path   = file_name + ".jpg"
+        annot_path = file_name + "_annotated.jpg"
+        img        = cv2.imread(img_path)
+        img_annot  = cv2.imread(annot_path)
+        if img is None:
+            raise FileNotFoundError(f"Could not read image: {os.path.abspath(img_path)}")
+        if img_annot is None:
+            raise FileNotFoundError(f"Could not read annotated image: {os.path.abspath(annot_path)}")
+
+        # 1) Find your painted annotations (bright red marks in BGR)
+        lower_limit = (0, 0, 245)
+        upper_limit = (10, 10, 255)  # <= 255 (fixed)
+        mask = cv2.inRange(img_annot, lower_limit, upper_limit)
+
+        # 2) Build the cluster from annotated pixels (unwanted class of pixels)
+        pixels = img.reshape(-1, 3).astype(np.float32)
+        mask_pixels = mask.reshape(-1)
+        annot_pix_values = pixels[mask_pixels == 255]
+        if annot_pix_values.shape[0] < 10:
+            raise ValueError("Not enough annotated pixels to estimate mean/cov.")
+
+        avg = annot_pix_values.mean(axis=0)
+        cov = np.cov(annot_pix_values, rowvar=False)
+
+        # Regularize covariance to avoid singular inverse
+        eps = 1e-6 * np.trace(cov) / cov.shape[0]
+        cov = cov + np.eye(cov.shape[0], dtype=cov.dtype) * eps
+        inv_cov = np.linalg.inv(cov)
+
+        # 3) Mahalanobis distance^2 for all pixels (your formulation)
+        diff = pixels - avg
+        mahalanobis_dist2 = np.sum(diff * (diff @ inv_cov), axis=1)
+        mahalanobis_distance_image = mahalanobis_dist2.reshape(img.shape[0], img.shape[1]).astype(np.float32)
+        self.mahalanobis_distance = mahalanobis_distance_image
+
+        # 4) Choose cutoff from your annotated cluster (q-percentile)
+        diff_annot = annot_pix_values - avg
+        d2_annot = np.sum(diff_annot * (diff_annot @ inv_cov), axis=1)
+        T2 = float(np.quantile(d2_annot, q))   # e.g., q=0.98 keeps 98% of the cluster
+
+        # --- minimal addition: store model for reuse ---
+        self.maha_avg = avg.astype(np.float32)
+        self.maha_inv_cov = inv_cov.astype(np.float32)
+        self.maha_T2 = T2
+        # also persist to disk so another function/run can use it
+        model_path = os.path.join(path, "mahalanobis_model.npz")
+        np.savez_compressed(model_path, avg=self.maha_avg, inv_cov=self.maha_inv_cov, T2=self.maha_T2)
+
+        # 5) Pixels similar to annotations (d2 ≤ T2) are "unwanted"
+        unwanted = (self.mahalanobis_distance <= T2)
+        keep_mask = (~unwanted).astype(np.uint8) * 255
+
+        # Optional cleanup
+        if morph and morph > 1:
+            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (morph, morph))
+            keep_mask = cv2.morphologyEx(keep_mask, cv2.MORPH_OPEN, k)
+            keep_mask = cv2.morphologyEx(keep_mask, cv2.MORPH_CLOSE, k)
+
+        # 6) Apply mask
+        filtered = cv2.bitwise_and(img, img, mask=keep_mask)
+
+        # Save
+        cv2.imwrite(os.path.join(os.path.dirname(file_name), "mahalanobis_filtered.png"), filtered)
+        cv2.imwrite(os.path.join(os.path.dirname(file_name), "mahalanobis_mask.png"), keep_mask)
+
+        return keep_mask, filtered
+
+
+    def apply_mahalanobis(self, morph=3):
+        if self.img is None:
+            raise FileNotFoundError(f"Could not read image")
+
+        # Load model from memory if available; else from disk
+        if not hasattr(self, "maha_inv_cov"):
+            model_path = os.path.join(path, "mahalanobis_model.npz")
+            data = np.load(model_path)
+            self.maha_avg = data["avg"].astype(np.float32)
+            self.maha_inv_cov = data["inv_cov"].astype(np.float32)
+            self.maha_T2 = float(data["T2"])
+
+        pixels = self.img.reshape(-1, 3).astype(np.float32)
+        diff = pixels - self.maha_avg
+        d2 = np.sum(diff * (diff @ self.maha_inv_cov), axis=1).astype(np.float32)
+        d2_img = d2.reshape(self.img.shape[:2])
+
+        keep_mask = (d2_img > self.maha_T2).astype(np.uint8) * 255
+
+        if morph and morph > 1:
+            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (morph, morph))
+            keep_mask = cv2.morphologyEx(keep_mask, cv2.MORPH_OPEN, k)
+            keep_mask = cv2.morphologyEx(keep_mask, cv2.MORPH_CLOSE, k)
+
+        filtered = cv2.bitwise_and(self.img, self.img, mask=keep_mask)
+        cv2.imwrite(os.path.join(path, "Filtered_image_after_mahalanobis.png"), filtered)
+        # Find contours on the filtered image
+        contours = self.find_contours(keep_mask)
+
+        # Draw the first contour
+        if contours:
+            contours_single = contours[0] if contours else None
+            cv2.drawContours(self.img, [contours_single], 0, (255, 0, 0), 2)
+            self.show_image(self.img)
+
+        hu_moments = []
+        for contour in contours:
+            hu_moments.append(self.hu_moments(contour))
+
+        return keep_mask, contours
+
+    def hu_moments(self, contour: list):
+        moments = cv2.moments(contour)
+        hu_features = cv2.HuMoments(moments).flatten()
+        print("Hu Moments:", hu_features)
+        return hu_features
