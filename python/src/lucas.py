@@ -82,18 +82,19 @@ def main():
     # Create mask for green and invert
     mask = cv2.inRange(hsv, lower_green, upper_green)
     mask_inv = cv2.bitwise_not(mask)
-
+    cv2.imwrite("../images/capture_savannah/mask.png", mask)
+    cv2.imwrite("../images/capture_savannah/mask_inv.png", mask_inv)
     # Optional: clean up specks (helps stability)
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     clean = cv2.morphologyEx(mask_inv, cv2.MORPH_OPEN, k, iterations=1)
 
     # Apply mask to remove grass
     result = cv2.bitwise_and(img, img, mask=clean)
-
+    cv2.imwrite("../images/capture_savannah/without_grass.png", result)
     # Grayscale & binary
     gray = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
-
+    cv2.imwrite("../images/capture_savannah/greyscaled.png", thresh)
     # Find contours
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -174,8 +175,10 @@ def main():
     cv2.imshow("Without Grass (cleaned)", result)
     wait_and_destroy()
     cv2.imshow("Contours (keep=red, drop=yellow)", contour_img)
+    cv2.imwrite("../images/capture_savannah/contours.png", contour_img)
     wait_and_destroy()
     cv2.imshow("Animals Highlighted", rect_img)
+    cv2.imwrite("../images/capture_savannah/animals.png", rect_img)
     wait_and_destroy()
 
 
